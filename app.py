@@ -1,68 +1,66 @@
 import streamlit as st
-import ollama
-
-st.set_page_config(page_title="Garmin KI", page_icon="🎙️")
-st.title("🎙️ Garmin KI Assistent")
-
-html_code = """
-<div style="text-align:center; margin-bottom:20px;">
-
-<button id="mic-btn" style="background:#ff4b4b;color:white;border:none;padding:12px 24px;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;width:250px;">
-🎙️ Assistent starten
-</button>
-
-<p id="status" style="font-family:sans-serif;font-weight:bold;margin-top:15px;">
-Bereit.
-</p>
-
-<div id="antwort-box" style="display:none;margin-top:20px;padding:15px;border-radius:8px;background:#e2e2e2;font-family:sans-serif;font-weight:bold;"></div>
-
-</div>
-
-<script>
-const btn = document.getElementById("mic-btn");
-const status = document.getElementById("status");
-const antwortBox = document.getElementById("antwort-box");
-
-const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-if (!Recognition) {
-    status.innerText = "Browser unterstützt SpeechRecognition nicht";
-}
-else {
-
-    const rec = new Recognition();
-
-    rec.lang = 'de-DE';
-    rec.interimResults = false;
-
-    let warteAufBefehl = false;
-    let aktiv = false;
-
-    function piep() {
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        osc.connect(ctx.destination);
-        osc.start();
-        setTimeout(() => osc.stop(), 250);
+        s.lang = "de-DE";
+        window.speechSynthesis.speak(s);
     }
 
-    function sprich(text) {
-        const speech = new SpeechSynthesisUtterance(text);
-        speech.lang = 'de-DE';
-        window.speechSynthesis.speak(speech);
-    }
-
-    btn.addEventListener("click", () => {
-        aktiv = true;
+    btn.onclick = () => {
+        active = true;
         rec.start();
+        status.innerText = "Sage: OK Garmin";
+    }
 
-        status.innerText = "💤 Warte auf Okay Garmin";
-        btn.style.background = "orange";
-    });
+    rec.onresult = (e) => {
+        const text = e.results[0][0].transcript.toLowerCase();
 
-    rec.onresult = async (e) => {
+        if (!wait) {
+            if (text.includes("okay garmin")) {
+                wait = true;
+                status.innerText = "Ich höre...";
+                rec.stop();
+            }
+        } else {
+            wait = false;
 
-        const gehoert = e.results[0][0].transcript.toLowerCase();
+            status.innerText = "Frage wird gesendet...";
 
-st.components.v1.html(html_code, height=350)
+            // 👉 Streamlit Übergabe via URL
+            const url = new URL(window.location);
+            url.searchParams.set("text", text);
+            window.location = url;
+        }
+    }
+
+    rec.onend = () => {
+        if (active) setTimeout(() => rec.start(), 300);
+    }
+}
+</script>
+"""
+
+st.components.v1.html(html, height=300)
+
+# --- Streamlit Query Input ---
+query = st.query_params.get("text")
+
+if query:
+    st.info(f"Du: {query}")
+
+    st.session_state.chat.append({"role": "user", "content": query})
+
+    response = ollama.chat(
+        model="llama3",
+        messages=st.session_state.chat
+    )
+
+    answer = response["message"]["content"]
+
+    st.session_state.chat.append({"role": "assistant", "content": answer})
+
+    st.success(answer)
+
+    st.markdown("### 💬 Chat Verlauf")
+    for m in st.session_state.chat[1:]:
+        if m["role"] == "user":
+            st.write("🧑 Du:", m["content"])
+        else:
+            st.write("🤖 KI:", m["content"])
